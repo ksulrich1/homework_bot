@@ -9,19 +9,13 @@ load_dotenv()
 
 
 class ApiResponseException(Exception):
-    """
-    Ошибка при запросе к API
-    """
-
+    """Ошибка при запросе к API"""
     def __str__(self):
         return "Ошибка при запросе к API"
 
 
 class HomeworkError(Exception):
-    """
-    Неправильно заполненный словарь homework
-    """
-
+    """Неправильно заполненный словарь homework"""
     def __str__(self):
         return "Неправильно заполненный словарь homework"
 
