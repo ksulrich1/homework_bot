@@ -9,15 +9,19 @@ load_dotenv()
 
 
 class ApiResponseException(Exception):
-    """Ошибка при запросе к API"""
+    """Ошибка при запросе к API."""
+
     def __str__(self):
-        return "Ошибка при запросе к API"
+        """Ошибка в запросе к API."""
+        return "Ошибка при запросе к API."
 
 
 class HomeworkError(Exception):
-    """Неправильно заполненный словарь homework"""
+    """Неправильно заполненный словарь homework."""
+
     def __str__(self):
-        return "Неправильно заполненный словарь homework"
+        """Ошибка в заполнении словаря."""
+        return "Неправильно заполненный словарь homework."
 
 
 PRACTICUM_TOKEN = "y0_AgAAAABaTRspAAYckQAAAADWvN4nUKVS85jXQryyrLUN3v3KFdNMw-o"
@@ -82,7 +86,7 @@ def get_api_answer(timestamp):
     try:
         homeworks_update = api_answer.json()
     except Exception:
-        logger.error(f"Не удалось получить данные")
+        logger.error("Не удалось получить данные")
     return homeworks_update
 
 
