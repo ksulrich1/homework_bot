@@ -1,32 +1,19 @@
 import logging
+import sys
+import os
 import time
 import requests
 import telegram
-from telegram import Bot
+from telegram import Bot, TelegramError
 from dotenv import load_dotenv
+from exceptions import ApiResponseException, HomeworkError
 
 load_dotenv()
 
 
-class ApiResponseException(Exception):
-    """Ошибка при запросе к API."""
-
-    def __str__(self):
-        """Ошибка в запросе к API."""
-        return "Ошибка при запросе к API."
-
-
-class HomeworkError(Exception):
-    """Неправильно заполненный словарь homework."""
-
-    def __str__(self):
-        """Ошибка в заполнении словаря."""
-        return "Неправильно заполненный словарь homework."
-
-
-PRACTICUM_TOKEN = "y0_AgAAAABaTRspAAYckQAAAADWvN4nUKVS85jXQryyrLUN3v3KFdNMw-o"
-TELEGRAM_TOKEN = "5954457997:AAHobyRY-FrJ5GoTjRHNfieATqSmUeURBiU"
-TELEGRAM_CHAT_ID = "228023007"
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_PERIOD = 600
 ENDPOINT = "https://practicum.yandex.ru/api/user_api/homework_statuses/"
@@ -49,16 +36,7 @@ logger.addHandler(file_handler)
 
 def check_tokens():
     """Провереряет доступность переменных окружения."""
-    if any(
-        [
-            PRACTICUM_TOKEN is None,
-            TELEGRAM_TOKEN is None,
-            TELEGRAM_CHAT_ID is None,
-        ]
-    ):
-        logger.debug("Не хватает переменных окружения")
-        return False
-    return True
+    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def send_message(bot: Bot, message):
@@ -69,7 +47,7 @@ def send_message(bot: Bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.debug("Бот отправляет сообщение")
-    except Exception:
+    except TelegramError:
         logger.error("Не удалось отправить сообщение")
 
 
@@ -84,19 +62,24 @@ def get_api_answer(timestamp):
     if api_answer.status_code != requests.codes.ok:
         raise ApiResponseException
     try:
-        homeworks_update = api_answer.json()
+        return api_answer.json()
     except Exception:
-        logger.error("Не удалось получить данные")
-    return homeworks_update
+        raise ApiResponseException("Не удалось получить данные")
 
 
 def check_response(response):
     """Провереряет ответ API на корректность."""
-    if not isinstance(response, dict) or not isinstance(
-        response.get("homeworks"), list
-    ):
-        raise TypeError
-    return response
+    if not isinstance(response, dict):
+        raise TypeError("Ответ не словарь")
+    logger.info("Получаем homeworks")
+    homeworks = response.get("homeworks")
+    if 'homeworks' not in response or 'current_date' not in response:
+        raise KeyError("Пустой ответ от API")
+    logger.info("Пустой ответ от API")
+    if not isinstance(homeworks, list):
+        raise TypeError("Homeworks не является списком")
+    logger.info("Homeworks не является списком")
+    return homeworks
 
 
 def parse_status(homework):
@@ -111,25 +94,34 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
+    if not check_tokens():
+        logging.critical(
+            "Проверьте количество переменных окружения"
+        )
+        sys.exit('Отсутсвуют переменные окружения')
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     if check_tokens():
         logger.debug("Запуск бота")
         timestamp = int(time.time())
         while True:
             try:
-                api_response = get_api_answer(timestamp)
-                homeworks_update = check_response(api_response)
-                homeworks = homeworks_update.get("homeworks")
+                response = get_api_answer(timestamp)
+                homeworks = check_response(response)
                 if homeworks:
-                    send_message(bot, parse_status(homeworks[0]))
-                timestamp = homeworks_update.get("current_date", timestamp)
+                    message = parse_status(response.get('homeworks')[0])
+                    send_message(bot, message)
+                    homework_status = parse_status(('homeworks')[0])
+                    if homework_status is not None:
+                        send_message(bot, homework_status)
+                    else:
+                        logger.debug("Новый статус не обнаружен")
+                timestamp = response.get('current_date', timestamp)
                 logger.debug("Засыпаем")
-                time.sleep(RETRY_PERIOD)
 
             except Exception as error:
                 message = f"Сбой в работе программы: {error}"
-                logger.error(error, exc_info=True)
-                send_message(bot, message)
+                logger.error(message, exc_info=True)
+            finally:
                 time.sleep(RETRY_PERIOD)
     else:
         logger.critical("Не хватает переменных окружения")
