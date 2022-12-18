@@ -75,10 +75,8 @@ def check_response(response):
     homeworks = response.get("homeworks")
     if 'homeworks' not in response or 'current_date' not in response:
         raise KeyError("Пустой ответ от API")
-    logger.info("Пустой ответ от API")
     if not isinstance(homeworks, list):
         raise TypeError("Homeworks не является списком")
-    logger.info("Homeworks не является списком")
     return homeworks
 
 
@@ -100,31 +98,25 @@ def main():
         )
         sys.exit('Отсутсвуют переменные окружения')
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    if check_tokens():
-        logger.debug("Запуск бота")
-        timestamp = int(time.time())
-        while True:
-            try:
-                response = get_api_answer(timestamp)
-                homeworks = check_response(response)
-                if homeworks:
-                    message = parse_status(response.get('homeworks')[0])
-                    send_message(bot, message)
-                    homework_status = parse_status(('homeworks')[0])
-                    if homework_status is not None:
-                        send_message(bot, homework_status)
-                    else:
-                        logger.debug("Новый статус не обнаружен")
-                timestamp = response.get('current_date', timestamp)
-                logger.debug("Засыпаем")
-
-            except Exception as error:
-                message = f"Сбой в работе программы: {error}"
-                logger.error(message, exc_info=True)
-            finally:
-                time.sleep(RETRY_PERIOD)
-    else:
-        logger.critical("Не хватает переменных окружения")
+    while True:
+        try:
+            logger.debug("Запуск бота")
+            timestamp = int(time.time())
+            response = get_api_answer(timestamp)
+            homeworks = check_response(response)
+            if homeworks:
+                message = parse_status(homeworks[0])
+                send_message(bot, message)
+                homework_status = parse_status(homeworks[0])
+                if homework_status is None:
+                    logger.debug("Новый статус не обнаружен")
+            timestamp = response.get('current_date', timestamp)
+            logger.debug("Засыпаем")
+        except Exception as error:
+            message = f"Сбой в работе программы: {error}"
+            logger.error(message, exc_info=True)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == "__main__":
