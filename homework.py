@@ -105,9 +105,8 @@ def main():
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
             if homeworks:
-                message = parse_status(homeworks[0])
-                send_message(bot, message)
                 homework_status = parse_status(homeworks[0])
+                send_message(bot, homework_status)
                 if homework_status is None:
                     logger.debug("Новый статус не обнаружен")
             timestamp = response.get('current_date', timestamp)
